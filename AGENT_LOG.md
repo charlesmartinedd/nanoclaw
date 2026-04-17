@@ -24,3 +24,15 @@
 **Status**: ✅ Pushed
 
 ---
+### 2026-04-17 00:41:25 — Codex (GPT)
+**Task**: Complete NanoClaw permanent auth cutover with a long-lived Claude token.
+**Changes**:
+- Completed `claude setup-token` on the VPS and installed the resulting 1-year `CLAUDE_CODE_OAUTH_TOKEN` into `/root/nanoclaw/.env`.
+- Fixed `src/container-runner.ts` so first-party Claude OAuth uses only `CLAUDE_CODE_OAUTH_TOKEN` and no longer misroutes through `ANTHROPIC_AUTH_TOKEN`.
+- Verified direct container auth succeeds with the long-lived token and still succeeds when `/home/node/.claude/.credentials.json` contains deliberately invalid credentials.
+- Restarted `nanoclaw.service` on the permanent token path.
+
+**Commit**: `fix: finalize long-lived nanoclaw oauth path`
+**Status**: ✅ Pushed
+
+---

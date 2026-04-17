@@ -70,9 +70,9 @@ function resolveAnthropicAuthEnv(): Record<string, string> {
 
   const oauthToken =
     process.env.CLAUDE_CODE_OAUTH_TOKEN ||
-    envFileValues.CLAUDE_CODE_OAUTH_TOKEN ||
-    process.env.ANTHROPIC_AUTH_TOKEN ||
-    envFileValues.ANTHROPIC_AUTH_TOKEN;
+    envFileValues.CLAUDE_CODE_OAUTH_TOKEN;
+  const authToken =
+    process.env.ANTHROPIC_AUTH_TOKEN || envFileValues.ANTHROPIC_AUTH_TOKEN;
   const apiKey =
     process.env.ANTHROPIC_API_KEY || envFileValues.ANTHROPIC_API_KEY;
   const baseUrl =
@@ -83,7 +83,8 @@ function resolveAnthropicAuthEnv(): Record<string, string> {
 
   if (oauthToken) {
     env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
-    env.ANTHROPIC_AUTH_TOKEN = oauthToken;
+  } else if (authToken) {
+    env.ANTHROPIC_AUTH_TOKEN = authToken;
   } else if (apiKey) {
     env.ANTHROPIC_API_KEY = apiKey;
   }

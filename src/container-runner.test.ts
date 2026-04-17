@@ -242,11 +242,10 @@ describe('container-runner timeout behavior', () => {
         '-e',
         'CLAUDE_CODE_OAUTH_TOKEN=oauth-token',
         '-e',
-        'ANTHROPIC_AUTH_TOKEN=oauth-token',
-        '-e',
         'ANTHROPIC_BASE_URL=https://proxy.example.com',
       ]),
     );
+    expect(args).not.toContain('ANTHROPIC_AUTH_TOKEN=oauth-token');
     expect(args).not.toContain('ANTHROPIC_API_KEY=oauth-token');
   });
 
