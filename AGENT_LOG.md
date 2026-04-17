@@ -7,7 +7,7 @@
 - Rebuilt NanoClaw, ran test/typecheck validation, and restored current fleet auth via fresh session credential sync from local machine.
 - Confirmed long-lived auth still needs one-time `claude setup-token` browser approval; short-lived `.credentials.json` access tokens are not valid for the centralized env path.
 
-**Commit**: `pending`
+**Commit**: `refactor: centralize nanoclaw auth token injection`
 **Status**: ✅ Pushed
 
 ---
@@ -20,7 +20,7 @@
 - Rebuilt NanoClaw, ran test/typecheck validation, and restored current fleet auth via fresh session credential sync from the local machine.
 - Confirmed long-lived auth still needs one-time `claude setup-token` browser approval; short-lived `.credentials.json` access tokens are not valid for the centralized env path.
 
-**Commit**: `pending`
+**Commit**: `refactor: centralize nanoclaw auth token injection`
 **Status**: ✅ Pushed
 
 ---
