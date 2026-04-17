@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
+
+import { readEnvFile } from './env.js';
+import { runContainerAgent, ContainerOutput } from './container-runner.js';
+import type { RegisteredGroup } from './types.js';
 
 // Sentinel markers must match container-runner.ts
 const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
@@ -17,6 +22,11 @@ vi.mock('./config.js', () => ({
   ONECLI_API_KEY: '',
   ONECLI_URL: 'http://localhost:10254',
   TIMEZONE: 'America/Los_Angeles',
+}));
+
+// Mock env file reader
+vi.mock('./env.js', () => ({
+  readEnvFile: vi.fn(() => ({})),
 }));
 
 // Mock logger
@@ -105,9 +115,6 @@ vi.mock('child_process', async () => {
     ),
   };
 });
-
-import { runContainerAgent, ContainerOutput } from './container-runner.js';
-import type { RegisteredGroup } from './types.js';
 
 const testGroup: RegisteredGroup = {
   name: 'Test Group',
@@ -198,6 +205,49 @@ describe('container-runner timeout behavior', () => {
     expect(result.status).toBe('error');
     expect(result.error).toContain('timed out');
     expect(onOutput).not.toHaveBeenCalled();
+  });
+
+  it('injects centralized OAuth auth into container env', async () => {
+    vi.mocked(readEnvFile).mockReturnValue({
+      CLAUDE_CODE_OAUTH_TOKEN: 'oauth-token',
+      ANTHROPIC_BASE_URL: 'https://proxy.example.com',
+    });
+
+    const onOutput = vi.fn(async () => {});
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      onOutput,
+    );
+
+    emitOutputMarker(fakeProc, {
+      status: 'success',
+      result: 'Configured',
+      newSessionId: 'session-auth',
+    });
+
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await resultPromise;
+
+    const spawnMock = vi.mocked(spawn);
+    const call = spawnMock.mock.calls.at(-1);
+    expect(call).toBeTruthy();
+    const args = call?.[1] as string[];
+    expect(args).toEqual(
+      expect.arrayContaining([
+        '-e',
+        'CLAUDE_CODE_OAUTH_TOKEN=oauth-token',
+        '-e',
+        'ANTHROPIC_AUTH_TOKEN=oauth-token',
+        '-e',
+        'ANTHROPIC_BASE_URL=https://proxy.example.com',
+      ]),
+    );
+    expect(args).not.toContain('ANTHROPIC_API_KEY=oauth-token');
   });
 
   it('normal exit after output resolves as success', async () => {

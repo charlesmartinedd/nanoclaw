@@ -18,6 +18,7 @@ import {
   TIMEZONE,
 } from './config.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
+import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
 import {
   CONTAINER_RUNTIME_BIN,
@@ -57,6 +58,45 @@ interface VolumeMount {
   hostPath: string;
   containerPath: string;
   readonly: boolean;
+}
+
+function resolveAnthropicAuthEnv(): Record<string, string> {
+  const envFileValues = readEnvFile([
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_AUTH_TOKEN',
+    'ANTHROPIC_BASE_URL',
+    'CLAUDE_CODE_OAUTH_TOKEN',
+  ]);
+
+  const oauthToken =
+    process.env.CLAUDE_CODE_OAUTH_TOKEN ||
+    envFileValues.CLAUDE_CODE_OAUTH_TOKEN ||
+    process.env.ANTHROPIC_AUTH_TOKEN ||
+    envFileValues.ANTHROPIC_AUTH_TOKEN;
+  const apiKey =
+    process.env.ANTHROPIC_API_KEY || envFileValues.ANTHROPIC_API_KEY;
+  const baseUrl =
+    process.env.ANTHROPIC_BASE_URL || envFileValues.ANTHROPIC_BASE_URL;
+
+  const env: Record<string, string> = {};
+  if (baseUrl) env.ANTHROPIC_BASE_URL = baseUrl;
+
+  if (oauthToken) {
+    env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
+    env.ANTHROPIC_AUTH_TOKEN = oauthToken;
+  } else if (apiKey) {
+    env.ANTHROPIC_API_KEY = apiKey;
+  }
+
+  return env;
+}
+
+function safeChownSync(targetPath: string, uid: number, gid: number): void {
+  try {
+    fs.chownSync(targetPath, uid, gid);
+  } catch (err) {
+    logger.debug({ err, gid, targetPath, uid }, 'Skipping chown for path');
+  }
 }
 
 function buildVolumeMounts(
@@ -191,11 +231,22 @@ function buildVolumeMounts(
   fs.mkdirSync(path.join(groupIpcDir, 'messages'), { recursive: true });
   fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true });
   fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true });
+  safeChownSync(path.join(groupIpcDir, 'input'), 1000, 1000);
   mounts.push({
     hostPath: groupIpcDir,
     containerPath: '/workspace/ipc',
     readonly: false,
   });
+
+  // Mount host .env for API access (Alpaca keys, etc)
+  const hostEnvFile = '/root/.env';
+  if (fs.existsSync(hostEnvFile)) {
+    mounts.push({
+      hostPath: hostEnvFile,
+      containerPath: '/workspace/host-env',
+      readonly: true,
+    });
+  }
 
   // Copy agent-runner source into a per-group writable location so agents
   // can customize it (add tools, change behavior) without affecting other
@@ -252,6 +303,11 @@ async function buildContainerArgs(
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
+
+  const anthropicEnv = resolveAnthropicAuthEnv();
+  for (const [key, value] of Object.entries(anthropicEnv)) {
+    args.push('-e', `${key}=${value}`);
+  }
 
   // OneCLI gateway handles credential injection — containers never see real secrets.
   // The gateway intercepts HTTPS traffic and injects API keys or OAuth tokens.
